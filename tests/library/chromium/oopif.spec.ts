@@ -308,6 +308,53 @@ it('ElementHandle.boundingBox() should work', async function({ page, browser, se
   await expect.poll(() => handle2!.boundingBox()).toEqual({ x: 100 + 42, y: 50 + 17, width: 50, height: 50 });
 });
 
+it('ElementHandle.boundingBox() should account for iframe border and padding', async function({ page, browser, server }) {
+  await page.goto(server.PREFIX + '/dynamic-oopif.html');
+  await page.$eval('iframe', iframe => {
+    iframe.style.width = '520px';
+    iframe.style.height = '520px';
+    iframe.style.marginLeft = '42px';
+    iframe.style.marginTop = '17px';
+    iframe.style.border = '7px solid black';
+    iframe.style.padding = '3px';
+  });
+  await page.frames()[1].goto(page.frames()[1].url());
+
+  await assertOOPIFCount(browser, 1);
+  const handle1 = await page.frames()[1].$('.box:nth-of-type(13)');
+  await expect.poll(() => handle1!.boundingBox()).toEqual({ x: 100 + 42 + 10, y: 50 + 17 + 10, width: 50, height: 50 });
+
+  await Promise.all([
+    page.frames()[1].waitForNavigation(),
+    page.evaluate('goLocal()'),
+  ]);
+  await assertOOPIFCount(browser, 0);
+  const handle2 = await page.frames()[1].$('.box:nth-of-type(13)');
+  await expect.poll(() => handle2!.boundingBox()).toEqual({ x: 100 + 42 + 10, y: 50 + 17 + 10, width: 50, height: 50 });
+});
+
+it('should click tiny element in iframe with border and padding', async function({ page, browser, server }) {
+  await page.goto(server.PREFIX + '/dynamic-oopif.html');
+  await page.$eval('iframe', iframe => {
+    iframe.style.width = '500px';
+    iframe.style.height = '500px';
+    iframe.style.border = '7px solid black';
+    iframe.style.padding = '3px';
+  });
+  await page.frames()[1].goto(page.frames()[1].url());
+
+  await assertOOPIFCount(browser, 1);
+  const dot = await page.frames()[1].evaluateHandle(() => {
+    const dot = document.createElement('div');
+    dot.style.cssText = 'position: absolute; left: 200px; top: 200px; width: 6px; height: 6px; background: red';
+    dot.addEventListener('click', () => (window as any)['_clicked'] = true, false);
+    document.body.appendChild(dot);
+    return dot;
+  });
+  await dot.asElement()!.click({ timeout: 5000 });
+  expect(await page.frames()[1].evaluate(() => (window as any)['_clicked'])).toBe(true);
+});
+
 it('should click', async function({ page, browser, server }) {
   await page.goto(server.PREFIX + '/dynamic-oopif.html');
   await page.$eval('iframe', iframe => {

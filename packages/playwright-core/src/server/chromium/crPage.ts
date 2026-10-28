@@ -1171,6 +1171,16 @@ class FrameSession {
       return { x: 0, y: 0 };
     using element = await frame.frameElement(nullProgress);
     const box = await element.boundingBox(nullProgress);
+    if (!box)
+      return null;
+    // Coordinates inside an out-of-process iframe are relative to the iframe's content box,
+    // which is offset by its border and padding widths (same as BiDi and _checkFrameIsHitTarget).
+    // When the iframe is transformed we cannot translate, keep the border box like before.
+    const style = await element.evaluateInUtility(([injected, iframe]) => injected.describeIFrameStyle(iframe as Element), {}).catch(e => 'error:notconnected' as const);
+    if (style !== 'error:notconnected' && style !== 'transformed') {
+      box.x += style.left;
+      box.y += style.top;
+    }
     return box;
   }
 
