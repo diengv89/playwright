@@ -1174,12 +1174,37 @@ class FrameSession {
     if (!box)
       return null;
     // Coordinates inside an out-of-process iframe are relative to the iframe's content box,
-    // which is offset by its border and padding widths (same as BiDi and _checkFrameIsHitTarget).
-    // When the iframe is transformed we cannot translate, keep the border box like before.
-    const style = await element.evaluateInUtility(([injected, iframe]) => injected.describeIFrameStyle(iframe as Element), {}).catch(e => 'error:notconnected' as const);
-    if (style !== 'error:notconnected' && style !== 'transformed') {
-      box.x += style.left;
-      box.y += style.top;
+    // which is offset by its border and padding widths (same as BiDi and _checkFrameIsHitTarget),
+    // snapped to device pixels like Chromium paints the frame. Translation-only transforms of the
+    // iframe or its ancestors (translateZ(0) layers, centered modals, slide-in panels) keep that
+    // offset; any other transform (scale, rotate, skew) cannot be expressed as an offset.
+    const offset = await element.evaluateInUtility(([, iframe]) => {
+      const win = iframe.ownerDocument?.defaultView;
+      if (!win)
+        return 'error:notconnected' as const;
+      for (let e: Element | null = iframe as Element; e;) {
+        const transform = win.getComputedStyle(e).transform;
+        if (transform && transform !== 'none') {
+          const m = new win.DOMMatrixReadOnly(transform);
+          const translateOnly = m.m11 === 1 && m.m12 === 0 && m.m13 === 0 && m.m14 === 0 &&
+            m.m21 === 0 && m.m22 === 1 && m.m23 === 0 && m.m24 === 0 &&
+            m.m31 === 0 && m.m32 === 0 && m.m33 === 1 && m.m34 === 0 && m.m44 === 1;
+          if (!translateOnly)
+            return 'transformed' as const;
+        }
+        e = e.parentElement ?? ((e.getRootNode() as ShadowRoot).host ?? null);
+      }
+      const style = win.getComputedStyle(iframe as Element);
+      const dpr = win.devicePixelRatio || 1;
+      const snap = (value: number) => Math.round(value * dpr) / dpr;
+      return {
+        left: snap(parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft)),
+        top: snap(parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop)),
+      };
+    }, {}).catch(e => 'error:notconnected' as const);
+    if (offset !== 'error:notconnected' && offset !== 'transformed') {
+      box.x += offset.left;
+      box.y += offset.top;
     }
     return box;
   }
