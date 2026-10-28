@@ -27,7 +27,9 @@ echo "Đã đóng gói: $TGZ"
 echo "integrity: sha512-$(openssl dgst -sha512 -binary "$TGZ" | base64 -w0)"
 
 if [ "$PUBLISH" = "--publish" ]; then
-  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+  # lấy từ remote origin — với fork, `gh repo view` tự chọn repo gốc microsoft/playwright
+  REPO=$(git remote get-url origin | sed -E 's#^(https://github.com/|git@github.com:)##; s#\.git$##')
+  case "$REPO" in microsoft/*) echo "origin trỏ về $REPO — chỉ phát hành lên fork." >&2; exit 1 ;; esac
   git push -u origin "$BRANCH"
   gh release create "$TAG" "$TGZ" --repo "$REPO" --target "$(git rev-parse HEAD)" \
     --title "playwright-core $VER (autotest $N)" \
