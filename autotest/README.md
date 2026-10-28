@@ -15,7 +15,7 @@ chức năng của app; mỗi sửa đổi viết sao cho gửi được pull re
 
 | # | Sửa đổi | Tệp | Test | Lý do (auto-test) |
 |---|---|---|---|---|
-| 1 | Chromium: toạ độ phần tử trong iframe khác site (OOPIF) tính từ vùng nội dung của thẻ iframe — cộng viền + đệm như BiDi / `_checkFrameIsHitTarget`. Trước đây ảnh chụp phần tử, `boundingBox()`, điểm bấm lệch đúng viền + đệm (iframe mặc định 2 px). Thẻ iframe bị transform giữ như cũ. | `packages/playwright-core/src/server/chromium/crPage.ts` (`_framePosition`) | `tests/library/chromium/oopif.spec.ts` («should account for iframe border and padding», «should click tiny element in iframe with border and padding») | việc 10 trong `docs/viec-se-lam.md` |
+| 1 | Chromium: toạ độ phần tử trong iframe khác site (OOPIF) tính từ vùng nội dung của thẻ iframe — cộng viền + đệm như BiDi / `_checkFrameIsHitTarget`, làm tròn theo điểm ảnh thiết bị như Chromium vẽ khung. Trước đây ảnh chụp phần tử, `boundingBox()`, điểm bấm lệch đúng viền + đệm (iframe mặc định 2 px). Thẻ iframe / tổ tiên chỉ bị tịnh tiến (`translateZ(0)`, modal căn giữa…) vẫn cộng; co giãn / xoay / nghiêng giữ như cũ. Hai commit: «fix(chromium): account for iframe border and padding…» + «fix(chromium): keep OOPIF content box offset under translated ancestors…». | `packages/playwright-core/src/server/chromium/crPage.ts` (`_framePosition`) | `tests/library/chromium/oopif.spec.ts` (5 test «…border and padding…», «…translated ancestors», «…fractional…», «…translateZ(0) ancestor») | việc 10 trong `docs/viec-se-lam.md` |
 
 ## Phát hành một bản cho auto-test
 
